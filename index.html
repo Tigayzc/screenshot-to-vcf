@@ -94,6 +94,9 @@ input:disabled { color: #b5b5b5; border-bottom-color: #d0d0d0; }
 .x:hover { color: var(--danger); }
 .empty { color: var(--sub); font-size: 14px; margin: 0; }
 .row-actions { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
+.steps { margin: 6px 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+.note b { color: var(--ink); font-weight: 600; }
+.mono { word-break: break-all; color: var(--ink); }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(24px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: #fff; padding: 12px 18px; font-size: 14px; max-width: calc(100% - 32px); }
 
 @media (max-width: 440px) {
@@ -163,6 +166,7 @@ input:disabled { color: #b5b5b5; border-bottom-color: #d0d0d0; }
     </div>
     <div class="list" id="list"></div>
     <div class="row-actions">
+      <button class="btn" type="button" id="importBtn" hidden disabled>导入通讯录</button>
       <button class="btn" type="button" id="downloadBtn" disabled>下载 .vcf</button>
       <button class="btn ghost" type="button" id="shareBtn" hidden disabled>分享</button>
     </div>
@@ -170,7 +174,15 @@ input:disabled { color: #b5b5b5; border-bottom-color: #d0d0d0; }
       <button class="link" type="button" id="addRow">手动添加号码</button>
       <button class="link" type="button" id="clearAll">清空</button>
     </div>
-    <p class="note">在 iPhone 的 Safari 里下载后，打开文件，点「添加全部联系人」。</p>
+    <div class="note" id="inapp" hidden>你现在是在 App 内置的浏览器里，这里一般无法导入联系人。请点右上角「…」选「在 Safari 中打开」，或复制网址到 Safari：<br><span class="mono" id="pageUrl"></span> <button class="link" type="button" id="copyUrl">复制网址</button></div>
+    <div class="note">
+      <b>iPhone 批量导入</b>
+      <ol class="steps">
+        <li>用 <b>Safari</b> 打开本页，点「导入通讯录」，在弹出的联系人预览里点「添加全部 N 个联系人」。</li>
+        <li>如果只看到一个联系人或没有反应：点「分享」→ 发给自己（信息、邮件或隔空投送），再在信息/邮件里点开这个附件 →「添加全部 N 个联系人」。</li>
+        <li>也可以在电脑上打开 icloud.com/contacts，点「+」→「导入联系人」选这个 .vcf，几秒后同步到手机。</li>
+      </ol>
+    </div>
   </section>
 </main>
 <div class="toast" id="toast" hidden></div>
@@ -323,7 +335,7 @@ input:disabled { color: #b5b5b5; border-bottom-color: #d0d0d0; }
     }
     const count = valid().length;
     $('summary').textContent = state.rows.length ? `共 ${count} 个联系人，号码识别有误可直接修改。` : '还没有号码。上传截图后会列在这里。';
-    $('downloadBtn').disabled = !count; $('shareBtn').disabled = !count;
+    $('downloadBtn').disabled = !count; $('shareBtn').disabled = !count; $('importBtn').disabled = !count;
   }
 
   // ---- VCF ----
@@ -348,6 +360,28 @@ input:disabled { color: #b5b5b5; border-bottom-color: #d0d0d0; }
     document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
     toast(`已导出 ${count} 个联系人`);
   });
+  // iPhone: open the vCard in Safari itself, which shows the Contacts preview
+  // with "Add All N Contacts" (a saved file in Files often only offers one).
+  const ua = navigator.userAgent;
+  const isIOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const inApp = isIOS && (!/Safari\//.test(ua) || /CriOS|FxiOS|EdgiOS|MicroMessenger|WeChat|Line\/|FBAN|FBAV|Instagram|Claude/i.test(ua));
+  if (isIOS) {
+    $('importBtn').hidden = false;
+    $('downloadBtn').classList.add('ghost');
+    $('importBtn').addEventListener('click', () => {
+      const { text, count } = buildVcf();
+      toast(`正在打开 ${count} 个联系人…`);
+      location.href = 'data:text/x-vcard;charset=utf-8,' + encodeURIComponent(text);
+    });
+  }
+  if (inApp) {
+    $('inapp').hidden = false; $('pageUrl').textContent = location.href;
+    $('copyUrl').addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(location.href); toast('已复制，粘贴到 Safari 打开'); }
+      catch { toast('请长按网址手动复制'); }
+    });
+  }
+
   if (navigator.canShare && navigator.canShare({ files: [new File(['x'], 'x.vcf', { type: 'text/vcard' })] })) {
     $('shareBtn').hidden = false;
     $('shareBtn').addEventListener('click', async () => {
