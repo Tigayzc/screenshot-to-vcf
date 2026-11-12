@@ -266,17 +266,38 @@ dialog#help::backdrop { background: rgba(0,0,0,0.35); }
   function extractPhones(text) {
     const out = [];
     const re = /(?:\+\s?)?[\dOoIl|(][\dOoIl|()\-.–— \t]{6,}[\dOoIl|)]/g;
-    for (const line of text.split(/\n/)) {
-      let m;
+    const fix = (s) => s.replace(/[Oo]/g, '0').replace(/[Il|]/g, '1');
+    const lines = text.split(/\n/);
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const before = out.length;
+      let m; re.lastIndex = 0;
       while ((m = re.exec(line))) {
         const raw = m[0];
         if ((raw.match(/\d/g) || []).length < 8) continue;
-        const d = raw.replace(/[Oo]/g, '0').replace(/[Il|]/g, '1').replace(/\D/g, '');
+        const d = fix(raw).replace(/\D/g, '');
         const national = d.match(/0[2-478]\d{8}|1[38]00\d{6}/g);
         if (national) { out.push(...national); continue; }
         const intl = d.match(/61[2-478]\d{8}/g);
         if (intl) out.push(...intl.map(toAU));
       }
+      if (out.length > before || i + 1 >= lines.length) continue;
+      // Large text size wraps a number onto two lines ("07 5675" / "4900").
+      // Take the start from the end of this line and exactly the missing
+      // digits from the end of the next line's first digit run, so stray
+      // characters OCR reads from the avatar ("11", "(") are dropped.
+      const head = fix(line).match(/(?:^|[^\d])(0[2-478][\d ]*)\s*$/);
+      if (!head) continue;
+      const hd = head[1].replace(/\D/g, '');
+      const need = 10 - hd.length;
+      if (need < 1 || need > 8) continue;
+      // everything before the first real word (2+ letters); lone letters like
+      // "C" or "(1)" from the avatar edge are allowed and their digits trimmed
+      const seg = fix(lines[i + 1]).match(/^(?:[^A-Za-z]|[A-Za-z](?![A-Za-z]))*/)[0];
+      const nd = seg.replace(/\D/g, '');
+      if (nd.length < need) continue;
+      const full = toAU(hd + nd.slice(-need));
+      if (full) { out.push(full); i++; }
     }
     return out;
   }
