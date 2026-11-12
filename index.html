@@ -89,6 +89,7 @@ input:disabled { color: #b5b5b5; border-bottom-color: #d0d0d0; }
 .item:first-child { border-top: 0; }
 .item .who { font-weight: 600; color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .item input { padding: 6px 8px; font-variant-numeric: tabular-nums; }
+.item input.bad { border-bottom-color: var(--danger); color: var(--danger); }
 .x { border: 0; background: none; font-size: 20px; line-height: 1; cursor: pointer; color: var(--sub); padding: 4px; }
 .x:hover { color: var(--danger); }
 .empty { color: var(--sub); font-size: 14px; margin: 0; }
@@ -117,7 +118,7 @@ input:disabled { color: #b5b5b5; border-bottom-color: #d0d0d0; }
       <p class="eyebrow">01 · Upload</p>
       <h2 id="h-up">上传截图</h2>
     </div>
-    <p class="note">截图里最好只有电话号码，一行一个。时间、日期等其他文字可能被误认成号码。</p>
+    <p class="note">只识别澳洲号码：手机 04XX XXX XXX、座机 0X XXXX XXXX、1300 / 1800。通话记录截图可以直接用，日期和地名会被忽略。</p>
     <label class="drop" id="drop" tabindex="0">
       <input id="fileInput" type="file" accept="image/*" multiple>
       <strong>选择图片</strong>
@@ -179,64 +180,47 @@ input:disabled { color: #b5b5b5; border-bottom-color: #d0d0d0; }
 (() => {
   const $ = (id) => document.getElementById(id);
   const state = { rows: [], nextId: 1, queue: Promise.resolve(), worker: null };
-  const COUNTRY = '61'; // parsing rules tuned for Australian numbers
 
   const today = () => { const d = new Date(); return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`; };
   const digitsOf = (s) => (s || '').replace(/\D/g, '');
   function toast(msg) { const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast._t); toast._t = setTimeout(() => t.hidden = true, 2600); }
 
-  // keep '+' if present, otherwise just digits; 00 → +
-  function cleanPhone(raw) {
-    const s = (raw || '').trim(); const d = digitsOf(s);
-    if (!d) return '';
-    if (s.startsWith('+')) return '+' + d;
-    if (d.startsWith('00')) return '+' + d.slice(2);
-    return d;
+  // ---- Australian numbers only ----
+  // Mobile 04XX XXX XXX · landline 0X XXXX XXXX · 1300/1800 XXX XXX. +61 / 0061 become 0…
+  // toAU returns the 10-digit national form, or '' when it isn't a valid AU number.
+  function toAU(raw) {
+    const d = digitsOf(raw);
+    let m;
+    if ((m = d.match(/^(?:0061|61)([2-478]\d{8})$/))) return '0' + m[1];
+    if (/^0[2-478]\d{8}$/.test(d)) return d;
+    if (/^[2-478]\d{8}$/.test(d)) return '0' + d;
+    if (/^1[38]00\d{6}$/.test(d)) return d;
+    return '';
   }
   function pretty(p) {
     let m;
     if ((m = p.match(/^(04\d{2})(\d{3})(\d{3})$/))) return m.slice(1).join(' ');
     if ((m = p.match(/^(0[2378])(\d{4})(\d{4})$/))) return m.slice(1).join(' ');
-    if ((m = p.match(/^\+61(4\d{2})(\d{3})(\d{3})$/))) return '+61 ' + m.slice(1).join(' ');
-    if ((m = p.match(/^(1\d{2})(\d{4})(\d{4})$/))) return m.slice(1).join(' ');
+    if ((m = p.match(/^(1[38]00)(\d{3})(\d{3})$/))) return m.slice(1).join(' ');
     return p;
   }
 
   // ---- phone extraction ----
-  function plausible(s) {
-    const d = digitsOf(s);
-    if (s.startsWith('+')) {
-      const fixed = { '61': [11], '86': [13], '1': [11], '44': [12], '64': [10, 11] };
-      for (const [cc, lens] of Object.entries(fixed)) if (d.startsWith(cc)) return lens.includes(d.length);
-      return d.length >= 10 && d.length <= 13;
-    }
-    if (d.startsWith('00')) return d.length >= 11 && d.length <= 15;
-    if (d.startsWith('0')) return COUNTRY === '61' ? d.length === 10 : (d.length >= 9 && d.length <= 11);
-    if (d.startsWith('1') && d.length === 11) return true;
-    if (d.startsWith('61')) return d.length === 11;
-    return d.length >= 8 && d.length <= 10;
-  }
-  function splitRun(run) {
-    const groups = run.split(/[ \t]+/).filter(g => /\d/.test(g));
-    const out = []; let i = 0;
-    while (i < groups.length) {
-      let hit = -1;
-      for (let j = groups.length; j > i; j--) if (plausible(groups.slice(i, j).join(' '))) { hit = j; break; }
-      if (hit === -1) { i++; continue; }
-      out.push(groups.slice(i, hit).join(' ')); i = hit;
-    }
-    return out;
-  }
+  // Search the digits of each run for an AU-shaped number, so stray digits OCR
+  // glues on (an avatar edge read as "1", a time like "10:42") can't change it.
   function extractPhones(text) {
     const out = [];
-    const re = /(?:\+\s?)?[\dOoIl|(][\dOoIl|()\-.\u2013\u2014 \t]{6,}[\dOoIl|)]/g;
+    const re = /(?:\+\s?)?[\dOoIl|(][\dOoIl|()\-.–— \t]{6,}[\dOoIl|)]/g;
     for (const line of text.split(/\n/)) {
       let m;
       while ((m = re.exec(line))) {
         const raw = m[0];
-        if ((raw.match(/\d/g) || []).length < 6) continue;
-        const cand = raw.replace(/[Oo]/g, '0').replace(/[Il|]/g, '1').replace(/[\-.\u2013\u2014()]/g, ' ').replace(/\+\s+/, '+').trim();
-        out.push(...splitRun(cand));
+        if ((raw.match(/\d/g) || []).length < 8) continue;
+        const d = raw.replace(/[Oo]/g, '0').replace(/[Il|]/g, '1').replace(/\D/g, '');
+        const national = d.match(/0[2-478]\d{8}|1[38]00\d{6}/g);
+        if (national) { out.push(...national); continue; }
+        const intl = d.match(/61[2-478]\d{8}/g);
+        if (intl) out.push(...intl.map(toAU));
       }
     }
     return out;
@@ -257,7 +241,7 @@ input:disabled { color: #b5b5b5; border-bottom-color: #d0d0d0; }
     ctx.drawImage(img, 0, 0, c.width, c.height);
     const data = ctx.getImageData(0, 0, c.width, c.height), px = data.data;
     let sum = 0;
-    for (let i = 0; i < px.length; i += 4) { const g = 0.299*px[i] + 0.587*px[i+1] + 0.114*px[i+2]; px[i] = g; sum += g; }
+    for (let i = 0; i < px.length; i += 4) { const g = Math.min(px[i], px[i+1], px[i+2]); px[i] = g; sum += g; }
     const invert = sum / (px.length / 4) < 128;
     for (let i = 0; i < px.length; i += 4) {
       let g = invert ? 255 - px[i] : px[i];
@@ -302,7 +286,7 @@ input:disabled { color: #b5b5b5; border-bottom-color: #d0d0d0; }
   function addPhones(list, source) {
     let added = 0;
     for (const raw of list) {
-      const phone = cleanPhone(raw);
+      const phone = toAU(raw);
       if (!phone || state.rows.some(r => digitsOf(r.phone) === digitsOf(phone))) continue;
       state.rows.push({ id: state.nextId++, phone, source }); added++;
     }
@@ -320,19 +304,20 @@ input:disabled { color: #b5b5b5; border-bottom-color: #d0d0d0; }
       last: namePart($('lastText').value, $('lastSeq').checked, $('lastStart').value, i),
     };
   }
-  const valid = () => state.rows.filter(r => digitsOf(r.phone).length >= 6);
+  const valid = () => state.rows.filter(r => toAU(r.phone));
 
   function render() {
     const list = $('list'); list.innerHTML = '';
     let i = 0;
     for (const r of state.rows) {
-      const ok = digitsOf(r.phone).length >= 6;
+      const ok = !!toAU(r.phone);
       const n = ok ? nameOf(i++) : { first: '', last: '' };
       const item = document.createElement('div'); item.className = 'item';
       item.innerHTML = '<span class="who"></span><input type="text" inputmode="tel" aria-label="电话号码"><button class="x" type="button" aria-label="删除">×</button>';
-      item.querySelector('.who').textContent = ok ? ([n.first, n.last].filter(Boolean).join(' ') || '（无名）') : '—';
+      item.querySelector('.who').textContent = ok ? ([n.first, n.last].filter(Boolean).join(' ') || '（无名）') : (r.phone ? '号码格式不对' : '—');
       const inp = item.querySelector('input'); inp.id = `ph-${r.id}`; inp.value = pretty(r.phone); inp.placeholder = '输入号码';
-      inp.addEventListener('change', () => { r.phone = cleanPhone(inp.value); render(); });
+      inp.addEventListener('change', () => { r.phone = toAU(inp.value) || inp.value.trim(); render(); });
+      if (r.phone && !ok) inp.classList.add('bad');
       item.querySelector('.x').addEventListener('click', () => { state.rows = state.rows.filter(x => x !== r); render(); });
       list.append(item);
     }
@@ -348,7 +333,7 @@ input:disabled { color: #b5b5b5; border-bottom-color: #d0d0d0; }
       const { first, last } = nameOf(i);
       const fn = [first, last].filter(Boolean).join(' ') || r.phone;
       return ['BEGIN:VCARD', 'VERSION:3.0', `N:${esc(last)};${esc(first)};;;`, `FN:${esc(fn)}`,
-        `TEL;type=CELL;type=VOICE;type=pref:${r.phone}`, 'END:VCARD'].join('\r\n');
+        `TEL;type=CELL;type=VOICE;type=pref:${pretty(toAU(r.phone))}`, 'END:VCARD'].join('\r\n');
     });
     return { text: cards.join('\r\n') + '\r\n', count: cards.length };
   }
