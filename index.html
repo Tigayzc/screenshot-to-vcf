@@ -4,201 +4,172 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>截图转联系人</title>
-<meta name="description" content="上传手机截图，自动识别所有电话号码，按规则命名并生成可直接导入 iPhone 的 VCF 联系人文件。">
+<meta name="description" content="上传号码截图，按规则命名，导出 iPhone 可直接导入的 VCF 联系人文件。">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap">
 <style>
-/* Layout: one narrow column of four numbered steps, phone-first; the number list is the working surface. */
+/* Minimal flat: white ground, 3px black frames, gray uppercase eyebrows, solid black buttons, no radius, no shadow. */
 :root {
-  --bg: #f4f6f5;
-  --surface: #ffffff;
-  --fg: #16201d;
-  --muted: #5d6b67;
-  --line: #d9e0dd;
-  --accent: #0b6e5b;
-  --accent-fg: #ffffff;
-  --accent-soft: #e2f1ec;
-  --warn: #9a5b00;
-  --danger: #b4302a;
-  --font-body: "IBM Plex Sans", -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
-  --radius: 10px;
+  --bg: #ffffff;
+  --ink: #000000;
+  --text: #111111;
+  --sub: #4b5563;
+  --eyebrow: #9aa3af;
+  --hair: #e5e7eb;
+  --field: #f6f6f6;
+  --danger: #c0262d;
+  --font: "Figtree", -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   color-scheme: light;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #0f1513; --surface: #17201d; --fg: #e6ece9; --muted: #95a39e; --line: #2a3632;
-    --accent: #3fbf9f; --accent-fg: #06201a; --accent-soft: #1b3a32; --warn: #e0a64a; --danger: #ef7a72;
-    color-scheme: dark;
-  }
-}
-:root[data-theme="dark"] {
-  --bg: #0f1513; --surface: #17201d; --fg: #e6ece9; --muted: #95a39e; --line: #2a3632;
-  --accent: #3fbf9f; --accent-fg: #06201a; --accent-soft: #1b3a32; --warn: #e0a64a; --danger: #ef7a72;
-  color-scheme: dark;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html { -webkit-text-size-adjust: 100%; }
 body {
-  margin: 0; background: var(--bg); color: var(--fg);
-  font-family: var(--font-body); font-size: 15px; line-height: 1.5;
+  margin: 0; background: var(--bg); color: var(--text); font-family: var(--font); font-size: 16px; line-height: 1.5;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
-  padding-block: max(20px, env(safe-area-inset-top, 0px)) max(40px, env(safe-area-inset-bottom, 0px));
+  padding-block: max(32px, env(safe-area-inset-top, 0px)) max(48px, env(safe-area-inset-bottom, 0px));
 }
-main { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
-header h1 { margin: 0; font-size: 26px; font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; }
-header p { margin: 6px 0 0; color: var(--muted); max-width: 60ch; }
-.privacy { display: inline-flex; gap: 6px; align-items: center; margin-top: 10px; font-size: 13px; color: var(--accent); background: var(--accent-soft); padding: 4px 10px; border-radius: 999px; }
+main { max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
 
-section.step { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-.step-head { display: flex; align-items: baseline; gap: 10px; }
-.step-no { font-family: var(--font-mono); font-size: 12px; color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; width: 22px; height: 22px; display: inline-grid; place-items: center; flex: none; }
-.step-head h2 { margin: 0; font-size: 17px; font-weight: 600; }
-.step-head .aside { margin-left: auto; font-size: 13px; color: var(--muted); }
-.hint { margin: 0; font-size: 13px; color: var(--muted); }
+.eyebrow { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--eyebrow); }
+h1 { margin: 0; font-size: 30px; font-weight: 700; letter-spacing: -0.01em; color: var(--ink); }
+h2 { margin: 0; font-size: 24px; font-weight: 700; color: var(--ink); }
+.sub { margin: 0; color: var(--sub); }
 
-/* Upload */
-.drop { border: 1.5px dashed var(--line); border-radius: var(--radius); padding: 22px 16px; text-align: center; cursor: pointer; display: flex; flex-direction: column; gap: 6px; align-items: center; transition: border-color .15s, background .15s; }
-.drop:hover, .drop.over { border-color: var(--accent); background: var(--accent-soft); }
-.drop strong { font-weight: 600; }
-.drop span { font-size: 13px; color: var(--muted); }
+.card { border: 3px solid var(--ink); padding: 28px 24px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.card-head { display: flex; flex-direction: column; gap: 6px; }
+
+/* buttons */
+.btn { font: inherit; font-size: 17px; font-weight: 500; border: 0; background: var(--ink); color: #fff; padding: 14px 28px; cursor: pointer; align-self: flex-start; }
+.btn:disabled { background: #c9c9c9; cursor: not-allowed; }
+.btn.ghost { background: transparent; color: var(--ink); border: 2px solid var(--ink); padding: 12px 22px; font-size: 15px; }
+.link { font: inherit; font-size: 14px; background: none; border: 0; padding: 0; color: var(--sub); text-decoration: underline; cursor: pointer; }
+:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+
+/* upload */
+.drop { border: 2px dashed var(--ink); padding: 26px 16px; text-align: center; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.drop.over { background: var(--field); }
 .drop input { display: none; }
-.thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; }
-.thumb { position: relative; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--bg); aspect-ratio: 3/4; max-width: 100%; }
-.thumb img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
-.thumb .tag { position: absolute; left: 0; right: 0; bottom: 0; font-size: 12px; padding: 4px 6px; background: color-mix(in srgb, var(--surface) 88%, transparent); color: var(--fg); }
-.thumb .tag.busy { color: var(--warn); }
-.thumb .tag.done { color: var(--accent); }
-.thumb .tag.err { color: var(--danger); }
+.drop strong { font-weight: 600; color: var(--ink); }
+.drop span { font-size: 14px; color: var(--sub); }
+.note { font-size: 14px; color: var(--sub); border-left: 3px solid var(--ink); padding-left: 10px; margin: 0; }
+.files { display: flex; flex-direction: column; gap: 0; }
+.file { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; padding: 8px 0; border-top: 1px solid var(--hair); }
+.file:first-child { border-top: 0; }
+.file .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file .st { flex: none; color: var(--sub); font-variant-numeric: tabular-nums; }
+.file .st.ok { color: var(--ink); font-weight: 600; }
+.file .st.err { color: var(--danger); }
 
-/* Naming */
-.fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.field.wide { grid-column: 1 / -1; }
-label { font-size: 13px; color: var(--muted); }
-input[type="text"], input[type="number"], select {
-  font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
-  padding: 9px 10px; width: 100%; min-width: 0; font-size: 16px;
+/* naming */
+.name-block { display: flex; flex-direction: column; gap: 10px; }
+.name-block + .name-block { border-top: 1px solid var(--hair); padding-top: 16px; }
+.label { font-size: 13px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--eyebrow); }
+.name-row { display: grid; grid-template-columns: minmax(0, 1fr) auto 88px; gap: 10px; align-items: center; }
+input[type="text"], input[type="number"] {
+  font: inherit; font-size: 16px; color: var(--ink); background: var(--field); border: 0; border-bottom: 2px solid var(--ink);
+  padding: 10px 12px; width: 100%; min-width: 0; border-radius: 0;
 }
-input:focus-visible, select:focus-visible, button:focus-visible, .drop:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.presets { display: flex; flex-wrap: wrap; gap: 8px; }
-.chip { font: inherit; font-size: 13px; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); cursor: pointer; }
-.chip:hover { border-color: var(--accent); }
-.chip.on { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
-code, .mono { font-family: var(--font-mono); font-size: 0.92em; }
-code { background: var(--accent-soft); color: var(--accent); padding: 1px 5px; border-radius: 4px; }
+input:disabled { color: #b5b5b5; border-bottom-color: #d0d0d0; }
+.toggle { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; color: var(--text); white-space: nowrap; user-select: none; }
+.toggle input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.track { width: 40px; height: 22px; border: 2px solid var(--ink); position: relative; flex: none; background: var(--bg); }
+.track::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; background: var(--ink); transition: transform .15s; }
+.toggle input:checked + .track { background: var(--ink); }
+.toggle input:checked + .track::after { background: var(--bg); transform: translateX(18px); }
+.toggle input:focus-visible + .track { outline: 3px solid var(--ink); outline-offset: 3px; }
+.start-wrap { display: flex; flex-direction: column; }
+.start-wrap input { text-align: center; }
 
-/* List */
-.list { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
-.row { display: grid; grid-template-columns: 28px minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr) 32px; gap: 8px; align-items: center; padding: 8px 10px; border-top: 1px solid var(--line); }
-.row:first-child { border-top: 0; }
-.row.head { background: var(--bg); font-size: 12px; color: var(--muted); letter-spacing: 0.02em; }
-.row.off { opacity: 0.45; }
-.row input[type="text"] { padding: 6px 8px; font-size: 15px; }
-.row input.phone { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
-.row input.custom { border-color: var(--warn); }
-.row input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); }
-.row .src { grid-column: 2 / -1; font-size: 11px; color: var(--muted); margin-top: -4px; }
-.icon-btn { border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 18px; line-height: 1; padding: 6px; border-radius: 6px; }
-.icon-btn:hover { color: var(--danger); background: var(--bg); }
-.empty { padding: 22px 12px; text-align: center; color: var(--muted); font-size: 14px; }
-.list-tools { display: flex; flex-wrap: wrap; gap: 8px; }
+/* list */
+.list { display: flex; flex-direction: column; }
+.item { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 28px; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--hair); }
+.item:first-child { border-top: 0; }
+.item .who { font-weight: 600; color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item input { padding: 6px 8px; font-variant-numeric: tabular-nums; }
+.x { border: 0; background: none; font-size: 20px; line-height: 1; cursor: pointer; color: var(--sub); padding: 4px; }
+.x:hover { color: var(--danger); }
+.empty { color: var(--sub); font-size: 14px; margin: 0; }
+.row-actions { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(24px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: #fff; padding: 12px 18px; font-size: 14px; max-width: calc(100% - 32px); }
 
-button.btn { font: inherit; font-weight: 500; border-radius: 8px; padding: 10px 16px; cursor: pointer; border: 1px solid var(--line); background: var(--bg); color: var(--fg); }
-button.btn:hover { border-color: var(--accent); }
-button.btn.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); font-size: 16px; padding: 13px 18px; }
-button.btn.primary:disabled { opacity: 0.4; cursor: not-allowed; }
-button.btn.small { padding: 6px 12px; font-size: 13px; }
-.actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-.summary { font-size: 14px; color: var(--muted); }
-.summary b { color: var(--fg); font-variant-numeric: tabular-nums; }
-.howto { margin: 0; padding-left: 20px; font-size: 13px; color: var(--muted); display: flex; flex-direction: column; gap: 2px; }
-.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 8px; font-size: 14px; max-width: calc(100% - 32px); }
-
-@media (max-width: 560px) {
-  .fields { grid-template-columns: 1fr; }
-  .row { grid-template-columns: 22px minmax(0, 1fr) minmax(0, 1fr) 28px; gap: 6px; padding: 8px; }
-  .row.head { display: none; }
-  .row .phone-cell { grid-column: 2 / 4; grid-row: 1; }
-  .row .del { grid-column: 4; grid-row: 1; }
-  .row .first-cell { grid-column: 2; grid-row: 2; }
-  .row .last-cell { grid-column: 3; grid-row: 2; }
-  .row .src { grid-column: 2 / -1; margin-top: 0; }
+@media (max-width: 440px) {
+  .card { padding: 22px 18px; }
+  .name-row { grid-template-columns: minmax(0, 1fr) 76px; }
+  .name-row .toggle { grid-column: 1 / -1; grid-row: 2; }
 }
-@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+@media (prefers-reduced-motion: reduce) { .track::after { transition: none; } }
 </style>
 </head>
 <body>
 <main>
-  <header>
+  <header class="card-head">
+    <p class="eyebrow">Screenshot → Contacts</p>
     <h1>截图转联系人</h1>
-    <p>上传通话记录、聊天、名片等截图，自动找出里面所有电话号码，按你的规则命名，生成一个 iPhone 能直接导入的 .vcf 文件。</p>
-    <div class="privacy">🔒 图片只在你的浏览器里识别，不会上传到服务器</div>
+    <p class="sub">图片只在你的浏览器里识别，不会上传到服务器。</p>
   </header>
 
-  <section class="step" aria-labelledby="s1">
-    <div class="step-head"><span class="step-no">1</span><h2 id="s1">上传截图</h2><span class="aside" id="ocrStatus"></span></div>
+  <!-- 1 upload -->
+  <section class="card" aria-labelledby="h-up">
+    <div class="card-head">
+      <p class="eyebrow">01 · Upload</p>
+      <h2 id="h-up">上传截图</h2>
+    </div>
+    <p class="note">截图里最好只有电话号码，一行一个。时间、日期等其他文字可能被误认成号码。</p>
     <label class="drop" id="drop" tabindex="0">
       <input id="fileInput" type="file" accept="image/*" multiple>
-      <strong>点击选择截图，或拖到这里</strong>
-      <span>可一次选多张 · 电脑上也可以直接 ⌘V / Ctrl+V 粘贴</span>
+      <strong>选择图片</strong>
+      <span>可多选，也可拖入或粘贴</span>
     </label>
-    <div class="thumbs" id="thumbs"></div>
+    <div class="files" id="files"></div>
   </section>
 
-  <section class="step" aria-labelledby="s2">
-    <div class="step-head"><span class="step-no">2</span><h2 id="s2">命名规则</h2></div>
-    <div class="presets" id="presets">
-      <button class="chip" type="button" data-first="Builder {n}" data-last="">连续编号：Builder 1, 2, 3…</button>
-      <button class="chip" type="button" data-first="Melbourne" data-last="Meeting">固定名称：Melbourne Meeting</button>
-      <button class="chip" type="button" data-first="Melbourne Meeting" data-last="{n}">固定 + 编号</button>
+  <!-- 2 naming -->
+  <section class="card" aria-labelledby="h-name">
+    <div class="card-head">
+      <p class="eyebrow">02 · Name</p>
+      <h2 id="h-name">命名</h2>
     </div>
-    <div class="fields">
-      <div class="field"><label for="firstPat">名 First name</label><input id="firstPat" type="text" value="Builder {n}" autocomplete="off"></div>
-      <div class="field"><label for="lastPat">姓 Last name</label><input id="lastPat" type="text" value="" autocomplete="off" placeholder="可留空"></div>
-      <div class="field"><label for="startNo">编号从几开始</label><input id="startNo" type="number" value="1" min="0" inputmode="numeric"></div>
-      <div class="field"><label for="country">号码统一加区号</label>
-        <select id="country">
-          <option value="">保持截图里的样子</option>
-          <option value="61" selected>+61 澳大利亚（0412… → +61 412…）</option>
-          <option value="86">+86 中国</option>
-          <option value="1">+1 美国 / 加拿大</option>
-          <option value="64">+64 新西兰</option>
-          <option value="44">+44 英国</option>
-        </select>
+
+    <div class="name-block">
+      <span class="label" id="l-first">First name 名</span>
+      <div class="name-row">
+        <input id="firstText" type="text" value="Builder" aria-labelledby="l-first" autocomplete="off" placeholder="可留空">
+        <label class="toggle"><input id="firstSeq" type="checkbox" checked><span class="track"></span>连续数字</label>
+        <div class="start-wrap"><input id="firstStart" type="number" value="1" min="0" inputmode="numeric" aria-label="First name 编号起始"></div>
       </div>
-      <div class="field"><label for="org">公司（可选）</label><input id="org" type="text" value="" autocomplete="off"></div>
-      <div class="field"><label for="note">备注（可选）</label><input id="note" type="text" value="" autocomplete="off" placeholder="例如：{date} 展会认识"></div>
     </div>
-    <p class="hint">在名字里写 <code>{n}</code> 会替换成连续编号，<code>{date}</code> 会替换成今天日期。不写 <code>{n}</code> 就是所有人用同一个名字。</p>
+
+    <div class="name-block">
+      <span class="label" id="l-last">Last name 姓</span>
+      <div class="name-row">
+        <input id="lastText" type="text" value="" aria-labelledby="l-last" autocomplete="off" placeholder="可留空">
+        <label class="toggle"><input id="lastSeq" type="checkbox"><span class="track"></span>连续数字</label>
+        <div class="start-wrap"><input id="lastStart" type="number" value="1" min="0" inputmode="numeric" aria-label="Last name 编号起始"></div>
+      </div>
+    </div>
+    <p class="note">打开「连续数字」，名字后面会依次加上 1、2、3…，右边的框是起始编号。关掉就是所有人用同一个名字。</p>
   </section>
 
-  <section class="step" aria-labelledby="s3">
-    <div class="step-head"><span class="step-no">3</span><h2 id="s3">核对号码</h2><span class="aside" id="countAside"></span></div>
-    <p class="hint">识别可能有错字，请对照截图检查一遍。取消勾选的号码不会导出；直接改名字的行会保留你的修改（橙色框）。</p>
+  <!-- 3 export -->
+  <section class="card" aria-labelledby="h-out">
+    <div class="card-head">
+      <p class="eyebrow">03 · Export</p>
+      <h2 id="h-out">导出 VCF</h2>
+      <p class="sub" id="summary">还没有号码。</p>
+    </div>
     <div class="list" id="list"></div>
-    <div class="list-tools">
-      <button class="btn small" type="button" id="addRow">＋ 手动添加号码</button>
-      <button class="btn small" type="button" id="resetNames">按规则重新命名</button>
-      <button class="btn small" type="button" id="clearAll">清空</button>
+    <div class="row-actions">
+      <button class="btn" type="button" id="downloadBtn" disabled>下载 .vcf</button>
+      <button class="btn ghost" type="button" id="shareBtn" hidden disabled>分享</button>
     </div>
-  </section>
-
-  <section class="step" aria-labelledby="s4">
-    <div class="step-head"><span class="step-no">4</span><h2 id="s4">导出 VCF</h2></div>
-    <div class="summary" id="summary"></div>
-    <div class="actions">
-      <button class="btn primary" type="button" id="downloadBtn">下载 .vcf 文件</button>
-      <button class="btn" type="button" id="shareBtn" hidden>分享到…（iPhone）</button>
+    <div class="row-actions">
+      <button class="link" type="button" id="addRow">手动添加号码</button>
+      <button class="link" type="button" id="clearAll">清空</button>
     </div>
-    <ol class="howto">
-      <li>在 iPhone 的 Safari 打开这个网页，下载后点「下载项」里的 .vcf 文件。</li>
-      <li>系统会显示联系人预览，点「添加全部 N 个联系人」即可。</li>
-      <li>在电脑上下载的话，用隔空投送、邮件或微信把文件发到手机再打开。</li>
-    </ol>
+    <p class="note">在 iPhone 的 Safari 里下载后，打开文件，点「添加全部联系人」。</p>
   </section>
 </main>
 <div class="toast" id="toast" hidden></div>
@@ -207,78 +178,56 @@ button.btn.small { padding: 6px 12px; font-size: 13px; }
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
-  const state = { rows: [], nextId: 1, queue: Promise.resolve(), worker: null, pending: 0 };
+  const state = { rows: [], nextId: 1, queue: Promise.resolve(), worker: null };
+  const COUNTRY = '61'; // parsing rules tuned for Australian numbers
 
-  // ---------- helpers ----------
-  const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
-  const fill = (pat, n) => pat.replaceAll('{n}', String(n)).replaceAll('{date}', today()).trim();
+  const today = () => { const d = new Date(); return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`; };
   const digitsOf = (s) => (s || '').replace(/\D/g, '');
-  function toast(msg) {
-    const t = $('toast'); t.textContent = msg; t.hidden = false;
-    clearTimeout(toast._t); toast._t = setTimeout(() => { t.hidden = true; }, 2600);
-  }
+  function toast(msg) { const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast._t); toast._t = setTimeout(() => t.hidden = true, 2600); }
 
-  // Normalize to a consistent form; country = '' keeps original digits
-  function normalizePhone(raw, country) {
-    let s = (raw || '').trim();
-    const plus = s.startsWith('+');
-    let d = digitsOf(s);
+  // keep '+' if present, otherwise just digits; 00 → +
+  function cleanPhone(raw) {
+    const s = (raw || '').trim(); const d = digitsOf(s);
     if (!d) return '';
-    if (!plus && d.startsWith('00')) return '+' + d.slice(2);
-    if (plus) return '+' + d;
-    if (!country) return d;
-    if (d.startsWith('0')) return '+' + country + d.slice(1);
-    if (d.startsWith(country) && d.length >= country.length + 8) return '+' + d;
-    if (country === '86' && /^1\d{10}$/.test(d)) return '+86' + d;
-    if (country === '1' && d.length === 10) return '+1' + d;
-    if (country === '61' && /^4\d{8}$/.test(d)) return '+61' + d;
-    return d; // can't tell which country it belongs to; leave as-is
+    if (s.startsWith('+')) return '+' + d;
+    if (d.startsWith('00')) return '+' + d.slice(2);
+    return d;
   }
-  const pretty = (p) => {
-    // light grouping for readability only
-    const m = p.match(/^\+61(4\d{2})(\d{3})(\d{3})$/); if (m) return `+61 ${m[1]} ${m[2]} ${m[3]}`;
-    const a = p.match(/^\+61([2378])(\d{4})(\d{4})$/); if (a) return `+61 ${a[1]} ${a[2]} ${a[3]}`;
-    const c = p.match(/^\+86(1\d{2})(\d{4})(\d{4})$/); if (c) return `+86 ${c[1]} ${c[2]} ${c[3]}`;
+  function pretty(p) {
+    let m;
+    if ((m = p.match(/^(04\d{2})(\d{3})(\d{3})$/))) return m.slice(1).join(' ');
+    if ((m = p.match(/^(0[2378])(\d{4})(\d{4})$/))) return m.slice(1).join(' ');
+    if ((m = p.match(/^\+61(4\d{2})(\d{3})(\d{3})$/))) return '+61 ' + m.slice(1).join(' ');
+    if ((m = p.match(/^(1\d{2})(\d{4})(\d{4})$/))) return m.slice(1).join(' ');
     return p;
-  };
+  }
 
-  // Is this chunk a plausible complete phone number?
-  function plausible(s, country) {
+  // ---- phone extraction ----
+  function plausible(s) {
     const d = digitsOf(s);
     if (s.startsWith('+')) {
-      const fixed = { '61': 11, '86': 13, '1': 11, '44': 12, '64': [10, 11] };
-      for (const [cc, len] of Object.entries(fixed)) {
-        if (d.startsWith(cc)) return Array.isArray(len) ? len.includes(d.length) : d.length === len;
-      }
+      const fixed = { '61': [11], '86': [13], '1': [11], '44': [12], '64': [10, 11] };
+      for (const [cc, lens] of Object.entries(fixed)) if (d.startsWith(cc)) return lens.includes(d.length);
       return d.length >= 10 && d.length <= 13;
     }
     if (d.startsWith('00')) return d.length >= 11 && d.length <= 15;
-    if (d.startsWith('0')) return country === '61' ? d.length === 10 : (d.length >= 9 && d.length <= 11);
-    if (d.startsWith('1') && d.length === 11) return true;   // CN mobile / US with 1
-    if (country === '61' && d.startsWith('61')) return d.length === 11;
-    return d.length >= 8 && d.length <= 10;                  // local number without trunk prefix
+    if (d.startsWith('0')) return COUNTRY === '61' ? d.length === 10 : (d.length >= 9 && d.length <= 11);
+    if (d.startsWith('1') && d.length === 11) return true;
+    if (d.startsWith('61')) return d.length === 11;
+    return d.length >= 8 && d.length <= 10;
   }
-
-  // A run like "0412 345 678 10" (number + time) is split into the longest
-  // plausible number from the left; leftovers are tried again.
-  function splitRun(run, country) {
+  function splitRun(run) {
     const groups = run.split(/[ \t]+/).filter(g => /\d/.test(g));
-    const out = [];
-    let i = 0;
+    const out = []; let i = 0;
     while (i < groups.length) {
       let hit = -1;
-      for (let j = groups.length; j > i; j--) {
-        if (plausible(groups.slice(i, j).join(' '), country)) { hit = j; break; }
-      }
+      for (let j = groups.length; j > i; j--) if (plausible(groups.slice(i, j).join(' '))) { hit = j; break; }
       if (hit === -1) { i++; continue; }
-      out.push(groups.slice(i, hit).join(' '));
-      i = hit;
+      out.push(groups.slice(i, hit).join(' ')); i = hit;
     }
     return out;
   }
-
-  // Pull every phone-looking run out of OCR text
-  function extractPhones(text, country) {
+  function extractPhones(text) {
     const out = [];
     const re = /(?:\+\s?)?[\dOoIl|(][\dOoIl|()\-.\u2013\u2014 \t]{6,}[\dOoIl|)]/g;
     for (const line of text.split(/\n/)) {
@@ -286,194 +235,133 @@ button.btn.small { padding: 6px 12px; font-size: 13px; }
       while ((m = re.exec(line))) {
         const raw = m[0];
         if ((raw.match(/\d/g) || []).length < 6) continue;
-        // common OCR letter/digit confusions, only inside digit runs
-        const cand = raw.replace(/[Oo]/g, '0').replace(/[Il|]/g, '1').replace(/[\-.\u2013\u2014()]/g, ' ')
-          .replace(/\+\s+/, '+').trim();
-        out.push(...splitRun(cand, country));
+        const cand = raw.replace(/[Oo]/g, '0').replace(/[Il|]/g, '1').replace(/[\-.\u2013\u2014()]/g, ' ').replace(/\+\s+/, '+').trim();
+        out.push(...splitRun(cand));
       }
     }
     return out;
   }
   window.extractPhones = extractPhones;
 
-  // ---------- OCR ----------
+  // ---- OCR ----
   async function getWorker() {
-    if (state.worker) return state.worker;
-    $('ocrStatus').textContent = '首次加载识别引擎…';
-    state.worker = await Tesseract.createWorker('eng', 1, {
+    if (!state.worker) state.worker = await Tesseract.createWorker('eng', 1, {
       logger: (m) => { if (state.onProgress && m.status === 'recognizing text') state.onProgress(m.progress); }
     });
     return state.worker;
   }
-
   function preprocess(img) {
     const scale = img.naturalWidth < 1000 ? 2 : 1;
-    const c = document.createElement('canvas');
-    c.width = img.naturalWidth * scale; c.height = img.naturalHeight * scale;
+    const c = document.createElement('canvas'); c.width = img.naturalWidth * scale; c.height = img.naturalHeight * scale;
     const ctx = c.getContext('2d', { willReadFrequently: true });
-    ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(img, 0, 0, c.width, c.height);
-    const data = ctx.getImageData(0, 0, c.width, c.height); const px = data.data;
+    const data = ctx.getImageData(0, 0, c.width, c.height), px = data.data;
     let sum = 0;
-    for (let i = 0; i < px.length; i += 4) { const g = 0.299*px[i] + 0.587*px[i+1] + 0.114*px[i+2]; px[i] = px[i+1] = px[i+2] = g; sum += g; }
-    const invert = sum / (px.length / 4) < 128; // dark-mode screenshot
+    for (let i = 0; i < px.length; i += 4) { const g = 0.299*px[i] + 0.587*px[i+1] + 0.114*px[i+2]; px[i] = g; sum += g; }
+    const invert = sum / (px.length / 4) < 128;
     for (let i = 0; i < px.length; i += 4) {
-      let g = px[i]; if (invert) g = 255 - g;
+      let g = invert ? 255 - px[i] : px[i];
       g = Math.max(0, Math.min(255, (g - 128) * 1.4 + 128));
       px[i] = px[i+1] = px[i+2] = g;
     }
     ctx.putImageData(data, 0, 0);
     return c;
   }
-
-  function loadImage(file) {
-    return new Promise((res, rej) => {
-      const url = URL.createObjectURL(file);
-      const img = new Image();
-      img.onload = () => res({ img, url });
-      img.onerror = () => rej(new Error('图片无法打开'));
-      img.src = url;
-    });
-  }
+  const loadImage = (file) => new Promise((res, rej) => {
+    const img = new Image(); img.onload = () => res(img); img.onerror = () => rej(new Error('bad image')); img.src = URL.createObjectURL(file);
+  });
 
   function handleFiles(files) {
     const imgs = [...files].filter(f => f.type.startsWith('image/'));
     if (!imgs.length) { toast('请选择图片文件'); return; }
-    imgs.forEach((file, idx) => {
-      const label = file.name && file.name !== 'image.png' ? file.name : `截图 ${document.querySelectorAll('.thumb').length + 1}`;
-      const box = document.createElement('div'); box.className = 'thumb';
-      const tag = document.createElement('div'); tag.className = 'tag busy'; tag.textContent = '排队中';
-      box.append(tag); $('thumbs').append(box);
-      state.pending++; updateStatus();
+    for (const file of imgs) {
+      const label = file.name && file.name !== 'image.png' ? file.name : `截图 ${$('files').children.length + 1}`;
+      const row = document.createElement('div'); row.className = 'file';
+      row.innerHTML = '<span class="name"></span><span class="st">排队中</span>';
+      row.querySelector('.name').textContent = label;
+      const st = row.querySelector('.st');
+      $('files').append(row);
       state.queue = state.queue.then(async () => {
         try {
-          const { img, url } = await loadImage(file);
-          const im = document.createElement('img'); im.src = url; im.alt = label; box.prepend(im);
-          tag.textContent = '识别中 0%';
+          st.textContent = '识别中…';
+          const img = await loadImage(file);
           const worker = await getWorker();
-          state.onProgress = (p) => { tag.textContent = `识别中 ${Math.round(p * 100)}%`; };
+          state.onProgress = (p) => { st.textContent = `识别中 ${Math.round(p * 100)}%`; };
           const { data } = await worker.recognize(preprocess(img));
-          const found = extractPhones(data.text, $('country').value);
+          const found = extractPhones(data.text);
           const added = addPhones(found, label);
-          tag.className = 'tag done';
-          tag.textContent = found.length ? `找到 ${found.length} 个${added < found.length ? `（${found.length - added} 个重复）` : ''}` : '没找到号码';
-          if (!found.length) tag.className = 'tag err';
-        } catch (e) {
-          console.error(e); tag.className = 'tag err'; tag.textContent = '识别失败';
-        } finally {
-          state.pending--; updateStatus();
-        }
+          if (found.length) { st.className = 'st ok'; st.textContent = `+${added} 个号码${found.length > added ? `（${found.length - added} 个重复）` : ''}`; }
+          else { st.className = 'st err'; st.textContent = '没找到号码'; }
+        } catch (e) { console.error(e); st.className = 'st err'; st.textContent = '识别失败'; }
       });
-    });
+    }
   }
-  window.handleFiles = handleFiles; // also used for testing
+  window.handleFiles = handleFiles;
 
-  function updateStatus() {
-    $('ocrStatus').textContent = state.pending ? `还剩 ${state.pending} 张` : (state.worker ? '识别完成' : '');
-  }
-
-  // ---------- rows ----------
+  // ---- rows & naming ----
   function addPhones(list, source) {
-    const country = $('country').value;
     let added = 0;
     for (const raw of list) {
-      const phone = normalizePhone(raw, country);
-      if (!phone) continue;
-      if (state.rows.some(r => digitsOf(normalizePhone(r.phone, country)) === digitsOf(phone))) continue;
-      state.rows.push({ id: state.nextId++, phone, raw, source, include: true, first: '', last: '', custom: false });
-      added++;
+      const phone = cleanPhone(raw);
+      if (!phone || state.rows.some(r => digitsOf(r.phone) === digitsOf(phone))) continue;
+      state.rows.push({ id: state.nextId++, phone, source }); added++;
     }
-    render();
-    return added;
+    render(); return added;
   }
-
-  function applyNames() {
-    const fp = $('firstPat').value, lp = $('lastPat').value;
-    let n = parseInt($('startNo').value, 10); if (isNaN(n)) n = 1;
-    for (const r of state.rows) {
-      if (!r.include) continue;
-      if (!r.custom) { r.first = fill(fp, n); r.last = fill(lp, n); }
-      n++;
-    }
+  function namePart(text, seq, start, i) {
+    const t = text.trim();
+    if (!seq) return t;
+    let n = parseInt(start, 10); if (isNaN(n)) n = 1;
+    return [t, String(n + i)].filter(Boolean).join(' ');
   }
+  function nameOf(i) {
+    return {
+      first: namePart($('firstText').value, $('firstSeq').checked, $('firstStart').value, i),
+      last: namePart($('lastText').value, $('lastSeq').checked, $('lastStart').value, i),
+    };
+  }
+  const valid = () => state.rows.filter(r => digitsOf(r.phone).length >= 6);
 
   function render() {
-    applyNames();
     const list = $('list'); list.innerHTML = '';
-    if (!state.rows.length) {
-      list.innerHTML = '<div class="empty">还没有号码。上传截图后，识别到的号码会列在这里。</div>';
-    } else {
-      const head = document.createElement('div'); head.className = 'row head';
-      head.innerHTML = '<span></span><span>电话</span><span>名 First</span><span>姓 Last</span><span></span>';
-      list.append(head);
-      for (const r of state.rows) {
-        const row = document.createElement('div'); row.className = 'row' + (r.include ? '' : ' off');
-        row.innerHTML = `
-          <input type="checkbox" id="inc-${r.id}" aria-label="导出这个号码" ${r.include ? 'checked' : ''}>
-          <div class="phone-cell"><input type="text" class="phone" id="ph-${r.id}" inputmode="tel" aria-label="电话"></div>
-          <div class="first-cell"><input type="text" id="fn-${r.id}" aria-label="名" class="${r.custom ? 'custom' : ''}" placeholder="名"></div>
-          <div class="last-cell"><input type="text" id="ln-${r.id}" aria-label="姓" class="${r.custom ? 'custom' : ''}" placeholder="姓"></div>
-          <button class="icon-btn del" type="button" aria-label="删除">×</button>
-          <div class="src"></div>`;
-        row.querySelector('.phone').value = pretty(r.phone);
-        row.querySelector(`#fn-${r.id}`).value = r.first;
-        row.querySelector(`#ln-${r.id}`).value = r.last;
-        row.querySelector('.src').textContent = r.source ? `来自 ${r.source}${r.raw && digitsOf(r.raw) !== digitsOf(r.phone) ? ` · 原文 ${r.raw}` : ''}` : '';
-        row.querySelector('input[type=checkbox]').addEventListener('change', (e) => { r.include = e.target.checked; render(); });
-        row.querySelector('.phone').addEventListener('change', (e) => { r.phone = normalizePhone(e.target.value, $('country').value) || e.target.value.trim(); e.target.value = pretty(r.phone); updateSummary(); });
-        const onName = () => {
-          r.first = row.querySelector(`#fn-${r.id}`).value; r.last = row.querySelector(`#ln-${r.id}`).value; r.custom = true;
-          row.querySelector(`#fn-${r.id}`).classList.add('custom'); row.querySelector(`#ln-${r.id}`).classList.add('custom'); updateSummary();
-        };
-        row.querySelector(`#fn-${r.id}`).addEventListener('input', onName);
-        row.querySelector(`#ln-${r.id}`).addEventListener('input', onName);
-        row.querySelector('.del').addEventListener('click', () => { state.rows = state.rows.filter(x => x !== r); render(); });
-        list.append(row);
-      }
+    let i = 0;
+    for (const r of state.rows) {
+      const ok = digitsOf(r.phone).length >= 6;
+      const n = ok ? nameOf(i++) : { first: '', last: '' };
+      const item = document.createElement('div'); item.className = 'item';
+      item.innerHTML = '<span class="who"></span><input type="text" inputmode="tel" aria-label="电话号码"><button class="x" type="button" aria-label="删除">×</button>';
+      item.querySelector('.who').textContent = ok ? ([n.first, n.last].filter(Boolean).join(' ') || '（无名）') : '—';
+      const inp = item.querySelector('input'); inp.id = `ph-${r.id}`; inp.value = pretty(r.phone); inp.placeholder = '输入号码';
+      inp.addEventListener('change', () => { r.phone = cleanPhone(inp.value); render(); });
+      item.querySelector('.x').addEventListener('click', () => { state.rows = state.rows.filter(x => x !== r); render(); });
+      list.append(item);
     }
-    updateSummary();
+    const count = valid().length;
+    $('summary').textContent = state.rows.length ? `共 ${count} 个联系人，号码识别有误可直接修改。` : '还没有号码。上传截图后会列在这里。';
+    $('downloadBtn').disabled = !count; $('shareBtn').disabled = !count;
   }
 
-  function updateSummary() {
-    const inc = state.rows.filter(r => r.include && digitsOf(r.phone).length >= 6);
-    $('countAside').textContent = state.rows.length ? `${state.rows.length} 个号码` : '';
-    const ex = inc.slice(0, 3).map(r => `${[r.first, r.last].filter(Boolean).join(' ') || '（无名）'}`).join('、');
-    $('summary').innerHTML = inc.length
-      ? `将导出 <b>${inc.length}</b> 个联系人：${escapeHtml(ex)}${inc.length > 3 ? ' …' : ''}`
-      : '还没有可导出的号码。';
-    $('downloadBtn').disabled = !inc.length;
-    $('shareBtn').disabled = !inc.length;
-  }
-  const escapeHtml = (s) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-
-  // ---------- VCF ----------
+  // ---- VCF ----
   const esc = (s) => String(s || '').replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;');
   function buildVcf() {
-    const org = $('org').value.trim(), note = fill($('note').value, '');
-    const cards = state.rows.filter(r => r.include && digitsOf(r.phone).length >= 6).map(r => {
-      const fn = [r.first, r.last].filter(Boolean).join(' ') || r.phone;
-      const lines = ['BEGIN:VCARD', 'VERSION:3.0', `N:${esc(r.last)};${esc(r.first)};;;`, `FN:${esc(fn)}`];
-      if (org) lines.push(`ORG:${esc(org)}`);
-      lines.push(`TEL;type=CELL;type=VOICE;type=pref:${r.phone}`);
-      if (note) lines.push(`NOTE:${esc(note)}`);
-      lines.push('END:VCARD');
-      return lines.join('\r\n');
+    const cards = valid().map((r, i) => {
+      const { first, last } = nameOf(i);
+      const fn = [first, last].filter(Boolean).join(' ') || r.phone;
+      return ['BEGIN:VCARD', 'VERSION:3.0', `N:${esc(last)};${esc(first)};;;`, `FN:${esc(fn)}`,
+        `TEL;type=CELL;type=VOICE;type=pref:${r.phone}`, 'END:VCARD'].join('\r\n');
     });
     return { text: cards.join('\r\n') + '\r\n', count: cards.length };
   }
+  window.buildVcf = buildVcf;
   function vcfFile() {
     const { text, count } = buildVcf();
-    const name = `contacts-${today()}-${count}.vcf`;
-    return { blob: new Blob([text], { type: 'text/vcard;charset=utf-8' }), name, count };
+    return { blob: new Blob([text], { type: 'text/vcard;charset=utf-8' }), name: `contacts-${today()}-${count}.vcf`, count };
   }
-  window.buildVcf = buildVcf;
-
   $('downloadBtn').addEventListener('click', () => {
     const { blob, name, count } = vcfFile();
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
-    document.body.append(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-    toast(`已生成 ${count} 个联系人：${name}`);
+    document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    toast(`已导出 ${count} 个联系人`);
   });
   if (navigator.canShare && navigator.canShare({ files: [new File(['x'], 'x.vcf', { type: 'text/vcard' })] })) {
     $('shareBtn').hidden = false;
@@ -484,7 +372,7 @@ button.btn.small { padding: 6px 12px; font-size: 13px; }
     });
   }
 
-  // ---------- inputs ----------
+  // ---- inputs ----
   const drop = $('drop');
   $('fileInput').addEventListener('change', (e) => { handleFiles(e.target.files); e.target.value = ''; });
   drop.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('fileInput').click(); } });
@@ -496,33 +384,24 @@ button.btn.small { padding: 6px 12px; font-size: 13px; }
     if (files.length) { e.preventDefault(); handleFiles(files); }
   });
 
-  const syncChips = () => document.querySelectorAll('#presets .chip').forEach(c =>
-    c.classList.toggle('on', c.dataset.first === $('firstPat').value && c.dataset.last === $('lastPat').value));
-  document.querySelectorAll('#presets .chip').forEach(c => c.addEventListener('click', () => {
-    $('firstPat').value = c.dataset.first; $('lastPat').value = c.dataset.last; save(); syncChips(); render();
-  }));
-  ['firstPat', 'lastPat', 'startNo', 'org', 'note'].forEach(id => $(id).addEventListener('input', () => { save(); syncChips(); render(); }));
-  $('country').addEventListener('change', () => {
-    save();
-    state.rows.forEach(r => { r.phone = normalizePhone(r.raw || r.phone, $('country').value); });
-    render();
-  });
-  $('addRow').addEventListener('click', () => {
-    state.rows.push({ id: state.nextId++, phone: '', raw: '', source: '手动添加', include: true, first: '', last: '', custom: false });
-    render();
-    const last = state.rows[state.rows.length - 1]; $(`ph-${last.id}`)?.focus();
-  });
-  $('resetNames').addEventListener('click', () => { state.rows.forEach(r => r.custom = false); render(); });
-  $('clearAll').addEventListener('click', () => { state.rows = []; $('thumbs').innerHTML = ''; render(); });
-
-  // remember naming settings on this device
-  const KEY = 'shot2vcf.settings';
+  const SETTINGS = ['firstText', 'firstSeq', 'firstStart', 'lastText', 'lastSeq', 'lastStart'];
+  const syncStart = () => { $('firstStart').disabled = !$('firstSeq').checked; $('lastStart').disabled = !$('lastSeq').checked; };
   function save() {
-    try { localStorage.setItem(KEY, JSON.stringify(Object.fromEntries(['firstPat','lastPat','startNo','country','org','note'].map(k => [k, $(k).value])))); } catch {}
+    try { localStorage.setItem('shot2vcf.v2', JSON.stringify(Object.fromEntries(SETTINGS.map(k => [k, $(k).type === 'checkbox' ? $(k).checked : $(k).value])))); } catch {}
   }
-  try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s) Object.entries(s).forEach(([k, v]) => { if ($(k)) $(k).value = v; }); } catch {}
-  syncChips();
-  render();
+  try {
+    const s = JSON.parse(localStorage.getItem('shot2vcf.v2') || 'null');
+    if (s) SETTINGS.forEach(k => { if (k in s) { if ($(k).type === 'checkbox') $(k).checked = !!s[k]; else $(k).value = s[k]; } });
+  } catch {}
+  SETTINGS.forEach(k => $(k).addEventListener('input', () => { syncStart(); save(); render(); }));
+  SETTINGS.forEach(k => $(k).addEventListener('change', () => { syncStart(); save(); render(); }));
+
+  $('addRow').addEventListener('click', () => {
+    const r = { id: state.nextId++, phone: '', source: '手动' }; state.rows.push(r); render(); $(`ph-${r.id}`)?.focus();
+  });
+  $('clearAll').addEventListener('click', () => { state.rows = []; $('files').innerHTML = ''; render(); });
+
+  syncStart(); render();
 })();
 </script>
 </body>
