@@ -97,6 +97,17 @@ input:disabled { color: #b5b5b5; border-bottom-color: #d0d0d0; }
 .steps { margin: 6px 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
 .note b { color: var(--ink); font-weight: 600; }
 .mono { word-break: break-all; color: var(--ink); }
+.top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.btn.small { padding: 8px 14px; font-size: 14px; flex: none; }
+dialog#help { border: 3px solid var(--ink); padding: 0; max-width: min(560px, calc(100% - 32px)); width: 100%; max-height: calc(100dvh - 48px); overflow-y: auto; background: var(--bg); color: var(--text); }
+dialog#help::backdrop { background: rgba(0,0,0,0.35); }
+.help-head { display: flex; justify-content: space-between; align-items: flex-start; padding: 24px 24px 8px; position: sticky; top: 0; background: var(--bg); }
+.help-body { padding: 0 24px 28px; display: flex; flex-direction: column; gap: 20px; }
+.help-body section { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--hair); padding-top: 16px; }
+.help-body h3 { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--eyebrow); }
+.help-body p, .help-body ol { margin: 0; color: var(--sub); font-size: 15px; }
+.help-body ol { padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+.help-body b { color: var(--ink); }
 .field-me { display: flex; flex-direction: column; gap: 6px; }
 #shareBtn { align-self: stretch; }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(24px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: #fff; padding: 12px 18px; font-size: 14px; max-width: calc(100% - 32px); }
@@ -111,10 +122,12 @@ input:disabled { color: #b5b5b5; border-bottom-color: #d0d0d0; }
 </head>
 <body>
 <main>
-  <header class="card-head">
-    <p class="eyebrow">Screenshot → Contacts</p>
-    <h1>截图转联系人</h1>
-    <p class="sub">图片只在你的浏览器里识别，不会上传到服务器。</p>
+  <header class="top">
+    <div class="card-head">
+      <p class="eyebrow">Screenshot → Contacts</p>
+      <h1>截图转联系人</h1>
+    </div>
+    <button class="btn ghost small" type="button" id="helpBtn" aria-haspopup="dialog">说明书</button>
   </header>
 
   <!-- 1 upload -->
@@ -123,11 +136,9 @@ input:disabled { color: #b5b5b5; border-bottom-color: #d0d0d0; }
       <p class="eyebrow">01 · Upload</p>
       <h2 id="h-up">上传截图</h2>
     </div>
-    <p class="note">只识别澳洲号码：手机 04XX XXX XXX、座机 0X XXXX XXXX、1300 / 1800。通话记录截图可以直接用，日期和地名会被忽略。</p>
     <label class="drop" id="drop" tabindex="0">
       <input id="fileInput" type="file" accept="image/*" multiple>
       <strong>选择图片</strong>
-      <span>可多选，也可拖入或粘贴</span>
     </label>
     <div class="files" id="files"></div>
   </section>
@@ -156,7 +167,6 @@ input:disabled { color: #b5b5b5; border-bottom-color: #d0d0d0; }
         <div class="start-wrap"><input id="lastStart" type="number" value="1" min="0" inputmode="numeric" aria-label="Last name 编号起始"></div>
       </div>
     </div>
-    <p class="note">打开「连续数字」，名字后面会依次加上 1、2、3…，右边的框是起始编号。关掉就是所有人用同一个名字。</p>
   </section>
 
   <!-- 3 export -->
@@ -164,7 +174,7 @@ input:disabled { color: #b5b5b5; border-bottom-color: #d0d0d0; }
     <div class="card-head">
       <p class="eyebrow">03 · Export</p>
       <h2 id="h-out">导出 VCF</h2>
-      <p class="sub" id="summary">还没有号码。</p>
+      <p class="sub" id="summary"></p>
     </div>
     <div class="list" id="list"></div>
     <div class="field-me">
@@ -178,15 +188,46 @@ input:disabled { color: #b5b5b5; border-bottom-color: #d0d0d0; }
       <button class="link" type="button" id="clearAll">清空</button>
     </div>
     <div class="note" id="inapp" hidden>你现在是在 App 内置的浏览器里，分享可能用不了。请点右上角「…」选「在 Safari 中打开」，或复制网址到 Safari：<br><span class="mono" id="pageUrl"></span> <button class="link" type="button" id="copyUrl">复制网址</button></div>
-    <div class="note">
-      <ol class="steps">
-        <li>点 <b>Share</b>，你的手机号会自动复制。</li>
-        <li>在分享菜单里选 <b>信息</b>，收件人处粘贴号码，发送。</li>
-        <li>在信息里点开这个附件 →「添加全部 N 个联系人」。</li>
-      </ol>
-    </div>
   </section>
 </main>
+<dialog id="help" aria-labelledby="help-title">
+  <div class="help-head">
+    <div class="card-head"><p class="eyebrow">Manual</p><h2 id="help-title">说明书</h2></div>
+    <button class="x" type="button" id="helpClose" aria-label="关闭">×</button>
+  </div>
+  <div class="help-body">
+    <section>
+      <h3>01 · 上传截图</h3>
+      <p>可以一次选多张，电脑上也可以拖入或粘贴。通话记录截图可以直接用，日期、时间、地名会被忽略。</p>
+      <p>只识别澳洲号码：手机 04XX XXX XXX、座机 0X XXXX XXXX、1300 / 1800 XXX XXX。+61 开头会转成 0 开头。重复的号码自动合并。</p>
+      <p>图片只在你的浏览器里识别，不会上传到服务器。</p>
+    </section>
+    <section>
+      <h3>02 · 命名</h3>
+      <p>名和姓各自可以设置：打开「连续数字」，名字后面依次加上 1、2、3…，右边的框是起始编号；关掉就是所有人用同一个名字。名或姓都可以留空。</p>
+      <p>例：名 Builder（连续，从 1 开始）+ 姓 Melbourne（固定）→ Builder 1 Melbourne、Builder 2 Melbourne…</p>
+    </section>
+    <section>
+      <h3>03 · 导出</h3>
+      <p>列表里的号码识别错了可以直接改，格式不对会标红且不会导出；点 × 删除。</p>
+      <ol>
+        <li>第一次使用，填一次你自己的手机号，之后会记住。</li>
+        <li>点 <b>Share</b>，号码自动复制，同时打开分享菜单。</li>
+        <li>选「信息」，在收件人处粘贴你的号码，发送。</li>
+        <li>在信息里点开附件 →「添加全部 N 个联系人」。</li>
+      </ol>
+      <p>电脑浏览器不能分享文件，会显示「下载 .vcf」，下载后发到手机即可。</p>
+    </section>
+    <section>
+      <h3>添加到手机桌面</h3>
+      <ol>
+        <li>用 Safari 打开本页，点分享按钮（iOS 26 先点地址栏旁的「⋯」）。</li>
+        <li>选「添加到主屏幕」→「添加」。</li>
+        <li>从桌面打开时需要再填一次手机号。</li>
+      </ol>
+    </section>
+  </div>
+</dialog>
 <div class="toast" id="toast" hidden></div>
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
@@ -336,7 +377,7 @@ input:disabled { color: #b5b5b5; border-bottom-color: #d0d0d0; }
       list.append(item);
     }
     const count = valid().length;
-    $('summary').textContent = state.rows.length ? `共 ${count} 个联系人，号码识别有误可直接修改。` : '还没有号码。上传截图后会列在这里。';
+    $('summary').textContent = state.rows.length ? `共 ${count} 个联系人` : '还没有号码';
     $('downloadBtn').disabled = !count; $('shareBtn').disabled = !count;
   }
 
@@ -389,6 +430,11 @@ input:disabled { color: #b5b5b5; border-bottom-color: #d0d0d0; }
       catch { toast('请长按网址手动复制'); }
     });
   }
+
+  // ---- manual ----
+  $('helpBtn').addEventListener('click', () => $('help').showModal());
+  $('helpClose').addEventListener('click', () => $('help').close());
+  $('help').addEventListener('click', (e) => { if (e.target === $('help')) $('help').close(); });
 
   // ---- inputs ----
   const drop = $('drop');
